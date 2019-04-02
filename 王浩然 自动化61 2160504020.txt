@@ -1,0 +1,762 @@
+////////////////////////////////////////////Project1//////////////////////////////////////////////
+#include"stdafx.h"
+#include "math.h"
+#include<iostream>
+#include<highgui.hpp>
+//#include<cv.hpp>
+//#include<imgproc.hpp>
+#include<opencv2/opencv.hpp>
+#include<opencv2/core/core.hpp>
+#include<opencv2/imgproc/imgproc.hpp>
+using namespace std;
+using namespace cv;
+#define pi 3.14159
+int number;
+Mat addgnoise(Mat in)
+{
+	Mat noise(in.size(), in.type());
+	RNG rng(time(NULL));
+	rng.fill(noise, RNG::NORMAL, 5, 36);
+	cv::add(in, noise, in);
+	return in;
+}
+Mat V_m(Mat in)
+{
+	int k, g,num;
+	int nHeight = in.rows;
+	int nWidth = in.cols;
+	Mat countt = Mat::zeros(nHeight,nWidth,5);
+	in.convertTo(in, 5);
+	for (int j = 0; j < nHeight; j++)
+	{
+		for (int i = 0; i < nWidth; i++)
+		{
+			num=0;
+			countt.at<float>(j, i) = 1.0;
+			for (k = -1; k <= 1; k++)
+			{
+				for (g = -1; g <= 1; g++)
+				{
+					if (j + k >= 0 && i + g >= 0 && j + k < nHeight&&i + g < nWidth)
+					{
+						num++;
+						countt.at<float>(j, i) *= in.at<float>(j + k, i + g);
+					}
+				}
+			}
+			countt.at<float>(j, i) =pow( countt.at<float>(j, i),1.0/num);
+
+		}
+	}
+	countt.convertTo(countt, 0);
+	return countt;
+}
+Mat XB_m(Mat in)
+{
+	int k, g, num;
+	int nHeight = in.rows;
+	int nWidth = in.cols;
+	Mat XB = Mat::zeros(nHeight, nWidth, 5);
+	in.convertTo(in, 5);
+	for (int j = 0; j < nHeight; j++)
+	{
+		for (int i = 0; i < nWidth; i++)
+		{
+			num = 0;
+			for (k = -1; k <= 1; k++)
+			{
+				for (g = -1; g <= 1; g++)
+				{
+					if (j + k >= 0 && i + g >= 0 && j + k < nHeight&&i + g < nWidth)
+					{
+						num++;
+						XB.at<float>(j, i) +=1.0/ in.at<float>(j + k, i + g);
+					}
+				}
+			}
+			XB.at<float>(j, i) = num/ XB.at<float>(j, i);
+
+		}
+	}
+	XB.convertTo(XB, 0);
+	return XB;
+}
+Mat IXB_m(Mat in,float Q)
+{
+	int k, g;
+	int nHeight = in.rows;
+	int nWidth = in.cols;
+	float Q_Q = 0.0;
+	float Q_Q_1 = 0.0;
+	Mat XB = Mat::zeros(nHeight, nWidth, 5);
+	in.convertTo(in, 5);
+	for (int j = 0; j < nHeight; j++)
+	{
+		for (int i = 0; i < nWidth; i++)
+		{
+			Q_Q = Q_Q_1 = 0.0;
+			for (k = -1; k <= 1; k++)
+			{
+				for (g = -1; g <= 1; g++)
+				{
+					if (j + k >= 0 && i + g >= 0 && j + k < nHeight&&i + g < nWidth)
+					{
+						Q_Q += pow(in.at<float>(j + k, i + g),Q);
+						Q_Q_1 += pow(in.at<float>(j + k, i + g), Q+1.0);
+					}
+				}
+			}
+			XB.at<float>(j, i) = Q_Q_1/Q_Q;
+
+		}
+	}
+	XB.convertTo(XB, 0);
+	return XB;
+
+}
+int main()
+{
+	Mat input, output_g,output_vm,output_m,output_mean,output_xb,output_ixb, output_gas;
+	input = imread("G:\\图像视频处理\\第6次作业\\第6次作业\\lena.bmp",0);
+	output_g=addgnoise(input);
+	medianBlur(output_g, output_mean, 7);
+	blur(output_g, output_m, Size(3, 3));
+	GaussianBlur(output_g, output_gas, Size(3, 3), 1.5);
+	output_ixb = IXB_m(output_g,2.0);
+	output_xb = XB_m(output_g);
+	output_vm = V_m(output_g);
+
+	imshow("output_m", output_m);
+	imshow("output_mean", output_mean);
+	imshow("output_xb", output_xb);
+	imshow("output_ixb", output_ixb);
+	imshow("output_gas", output_gas);
+	imshow("count", output_vm);
+	imshow("input_noise", output_g);
+	waitKey();
+	return 0;
+}
+////////////////////////////////////////////Project2//////////////////////////////////////////////
+#include"stdafx.h"
+#include "math.h"
+#include<iostream>
+#include<highgui.hpp>
+//#include<cv.hpp>
+//#include<imgproc.hpp>
+#include<opencv2/opencv.hpp>
+#include<opencv2/core/core.hpp>
+#include<opencv2/imgproc/imgproc.hpp>
+using namespace std;
+using namespace cv;
+#define pi 3.14159
+int number;
+void salt(Mat in)
+{
+	int i, j;
+	int n = in.cols*in.rows*0.1;
+	for (int k = 0; k < n / 2; k++)
+	{
+		i = rand() % in.cols;
+		j = rand() % in.rows;
+		in.at<uchar>(j, i) = 255;
+	}
+}
+void pepper(Mat in)
+{
+	int i, j;
+	int n = in.cols*in.rows*0.1;
+	for (int k = 0; k < n / 2; k++)
+	{
+		i = rand() % in.cols;
+		j = rand() % in.rows;
+		in.at<uchar>(j, i) = 0;
+	}
+}
+Mat addspnoise(Mat in)
+{
+	salt(in);
+	pepper(in);
+	return in;
+}
+Mat V_m(Mat in)
+{
+	int k, g, num;
+	int nHeight = in.rows;
+	int nWidth = in.cols;
+	Mat countt = Mat::zeros(nHeight, nWidth, 5);
+	in.convertTo(in, 5);
+	for (int j = 0; j < nHeight; j++)
+	{
+		for (int i = 0; i < nWidth; i++)
+		{
+			num = 0;
+			countt.at<float>(j, i) = 1.0;
+			for (k = -1; k <= 1; k++)
+			{
+				for (g = -1; g <= 1; g++)
+				{
+					if (j + k >= 0 && i + g >= 0 && j + k < nHeight&&i + g < nWidth)
+					{
+						num++;
+						countt.at<float>(j, i) *= in.at<float>(j + k, i + g);
+					}
+				}
+			}
+			countt.at<float>(j, i) = pow(countt.at<float>(j, i), 1.0 / num);
+
+		}
+	}
+	countt.convertTo(countt, 0);
+	return countt;
+}
+Mat XB_m(Mat in)
+{
+	int k, g, num;
+	int nHeight = in.rows;
+	int nWidth = in.cols;
+	Mat XB = Mat::zeros(nHeight, nWidth, 5);
+	in.convertTo(in, 5);
+	for (int j = 0; j < nHeight; j++)
+	{
+		for (int i = 0; i < nWidth; i++)
+		{
+			num = 0;
+			for (k = -1; k <= 1; k++)
+			{
+				for (g = -1; g <= 1; g++)
+				{
+					if (j + k >= 0 && i + g >= 0 && j + k < nHeight&&i + g < nWidth)
+					{
+						num++;
+						XB.at<float>(j, i) += 1.0 / in.at<float>(j + k, i + g);
+					}
+				}
+			}
+			XB.at<float>(j, i) = num / XB.at<float>(j, i);
+
+		}
+	}
+	XB.convertTo(XB, 0);
+	return XB;
+}
+Mat IXB_m(Mat in, float Q)
+{
+	int k, g;
+	int nHeight = in.rows;
+	int nWidth = in.cols;
+	float Q_Q = 0.0;
+	float Q_Q_1 = 0.0;
+	Mat XB = Mat::zeros(nHeight, nWidth, 5);
+	in.convertTo(in, 5);
+	for (int j = 0; j < nHeight; j++)
+	{
+		for (int i = 0; i < nWidth; i++)
+		{
+			Q_Q = Q_Q_1 = 0.0;
+			for (k = -1; k <= 1; k++)
+			{
+				for (g = -1; g <= 1; g++)
+				{
+					if (j + k >= 0 && i + g >= 0 && j + k < nHeight&&i + g < nWidth)
+					{
+						Q_Q += pow(in.at<float>(j + k, i + g), Q);
+						Q_Q_1 += pow(in.at<float>(j + k, i + g), Q + 1.0);
+					}
+				}
+			}
+			XB.at<float>(j, i) = Q_Q_1 / Q_Q;
+
+		}
+	}
+	XB.convertTo(XB, 0);
+	return XB;
+
+}
+int main()
+{
+	Mat input, output_g, output_vm, output_m, output_mean, output_xb, output_ixb, output_gas;
+	input = imread("G:\\图像视频处理\\第6次作业\\第6次作业\\lena.bmp", 0);
+	output_g = addspnoise(input);
+
+	medianBlur(output_g, output_mean, 7);
+	blur(output_g, output_m, Size(3, 3));
+	GaussianBlur(output_g, output_gas, Size(3, 3), 1.5);
+	output_ixb = IXB_m(output_g, -0.5);
+	output_xb = XB_m(output_g);
+	output_vm = V_m(output_g);
+
+	imshow("output_m", output_m);
+	imshow("output_mean", output_mean);
+	imshow("output_xb", output_xb);
+	imshow("output_ixb", output_ixb);
+	imshow("output_gas", output_gas);
+	imshow("count", output_vm);
+	imshow("saltpepper_noise", output_g);
+	waitKey();
+	return 0;
+}
+////////////////////////////////////////////Project3//////////////////////////////////////////////
+#include"stdafx.h"
+#include "math.h"
+#include<iostream>
+#include<highgui.hpp>
+//#include<cv.hpp>
+//#include<imgproc.hpp>
+#include<opencv2/opencv.hpp>
+#include<opencv2/core/core.hpp>
+#include<opencv2/imgproc/imgproc.hpp>
+using namespace std;
+using namespace cv;
+#define pi 3.14159
+int number;
+float K = 0.0;
+float y = pow(10.0,-5.0);
+float y_add = pow(10.0, -6.0);
+Mat addgnoise(Mat in,float a,float b, float T)
+{
+
+	int nHeight = in.rows;
+	int nWidth = in.cols;
+	int P = 2 * nHeight;
+	int Q = 2 * nWidth;
+	Mat noise(Size(nHeight,nWidth), in.type());
+	RNG rng(time(NULL));
+	rng.fill(noise, RNG::NORMAL, 0, 10);	
+	in.convertTo(in, 5);
+	noise.convertTo(noise, 5);
+	int i, j;
+	float U = 0.0;
+	float pi_u = 0.0;
+	Mat fp = Mat::zeros(P, Q, 5);
+	Mat nois = Mat::zeros(P, Q, 5);
+	for (int j = 0; j < nHeight; j++)
+	{
+		for (int i = 0; i < nWidth; i++)
+		{
+			fp.at<float>(j, i) = in.at<float>(j, i)*pow(-1, j + i);
+			nois.at<float>(j, i) = noise.at<float>(j, i)*pow(-1, j + i);
+		}
+	}
+	Mat planes[] = { Mat_<float>(fp), Mat::zeros(fp.size(), CV_32F) };
+	Mat noise_i[] = { Mat_<float>(nois), Mat::zeros(fp.size(), CV_32F) };
+	Mat H[] = { Mat::zeros(fp.size(), CV_32F) , Mat::zeros(fp.size(), CV_32F) };
+	Mat H_A = Mat::zeros(P, Q, 5);
+	Mat out = Mat::zeros(nHeight, nWidth, 5);
+	Mat complex;
+	merge(planes, 2, complex);
+	dft(complex, complex);
+	split(complex, planes);
+	merge(noise_i, 2, complex);
+	dft(complex, complex);
+	split(complex, noise_i);
+	float P0, P1;
+	for (int j = 0; j < P; j++)
+	{
+		for (int i = 0; i < Q; i++)
+		{				
+						
+			pi_u = CV_PI * ((j - nHeight)*a + (i - nWidth) * b) + 1e-20;
+			H[0].at<float>(j, i) = (T / pi_u)*(sin(pi_u))*(cos(pi_u)) ;
+			H[1].at<float>(j, i) = -(T / pi_u)*(sin(pi_u))*(sin(pi_u));	
+			P0 = H[0].at<float>(j, i);
+			P1 = H[1].at<float>(j, i);
+			H_A.at<float>(j, i) = P0 * P0 + P1 * P1;
+			U = H_A.at<float>(j, i) / (H_A.at<float>(j, i) + K);
+			noise_i[1].at<float>(j, i) = (noise_i[1].at<float>(j, i)*H[0].at<float>(j, i) - noise_i[0].at<float>(j, i)*H[1].at<float>(j, i))/ (H_A.at<float>(j, i)+K);
+			noise_i[0].at<float>(j, i) = (noise_i[0].at<float>(j, i)*H[0].at<float>(j, i) + noise_i[0].at<float>(j, i)*H[0].at<float>(j, i))/ (H_A.at<float>(j, i)+K);
+			planes[0].at<float>(j, i) = U * planes[0].at<float>(j, i)+ noise_i[0].at<float>(j, i);
+			planes[1].at<float>(j, i) = U * planes[1].at<float>(j, i)+ noise_i[1].at<float>(j, i);
+
+
+		}
+	}
+	Mat complex_cp;
+	merge(planes, 2, complex_cp);
+	Mat iDft[] = { Mat::zeros(planes[1].size(),CV_32F),Mat::zeros(planes[1].size(),CV_32F) };
+	idft(complex_cp, complex_cp);
+	split(complex_cp, iDft);
+
+	for (int j = 0; j < nHeight; j++)
+	{
+		for (int i = 0; i < nWidth; i++)
+		{
+			out.at<float>(j, i) = iDft[0].at<float>(j, i)*pow(-1, j + i);
+		}
+	}
+
+	normalize(out, out, 0, 255, CV_MINMAX);
+	in.convertTo(in, 0);
+	out.convertTo(out, 0);
+	return out;
+}
+Mat move_gas(Mat in,float a,float b,float T)
+{
+	int nHeight = in.rows;
+	int nWidth = in.cols;
+	int P = 2 * nHeight;
+	int Q = 2 * nWidth;
+	int i, j;
+	float pi_u = 0.0;
+	Mat fp = Mat::zeros(P, Q, 5);
+	in.convertTo(in, 5);
+	for (int j = 0; j < nHeight; j++)
+	{
+		for (int i = 0; i < nWidth; i++)
+		{
+			fp.at<float>(j, i) = in.at<float>(j, i)*pow(-1, j + i);
+
+		}
+	}
+	Mat planes[] = { Mat_<float>(fp), Mat::zeros(fp.size(), CV_32F) };
+	Mat H[] = { Mat::zeros(fp.size(), CV_32F) , Mat::zeros(fp.size(), CV_32F) };
+	Mat out;
+	in.copyTo(out);
+	Mat G = Mat::zeros(P, Q, 5);
+	Mat complex;	
+	merge(planes, 2, complex);
+	dft(complex, complex);
+	split(complex, planes);
+	for (int j = 0; j < P; j++)
+	{
+		for (int i = 0; i < Q; i++)
+		{
+
+			pi_u = CV_PI* ((j-nHeight)*a + (i-nWidth) * b)+1e-20;
+			H[0].at<float>(j, i) = (T / pi_u)*(sin(pi_u))*(cos(pi_u));
+			H[1].at<float>(j, i) = -(T / pi_u)*(sin(pi_u))*(sin(pi_u));
+			planes[0].at<float>(j, i) = H[0].at<float>(j, i)*planes[0].at<float>(j, i)- H[1].at<float>(j, i)*planes[1].at<float>(j, i);
+			planes[1].at<float>(j, i) = H[0].at<float>(j, i)* planes[1].at<float>(j, i)+ H[1].at<float>(j, i)*planes[0].at<float>(j, i);
+		}
+	}
+	Mat complex_cp;
+	merge(planes, 2, complex_cp);
+	Mat iDft[] = { Mat::zeros(planes[1].size(),CV_32F),Mat::zeros(planes[1].size(),CV_32F) };
+	idft(complex_cp, complex_cp);
+	split(complex_cp, iDft);
+	for (int j = 0; j < nHeight; j++)
+	{
+		for (int i = 0; i < nWidth; i++)
+		{
+			
+			out.at<float>(j, i) = iDft[0].at<float>(j, i)*pow(-1, j + i);
+		}
+	}
+	merge(iDft, 2, complex_cp);
+	normalize(out, out, 0, 255, CV_MINMAX);
+	in.convertTo(in, 0);
+	out.convertTo(out, 0);
+	Mat noise(Size(nHeight, nWidth), out.type());
+	RNG rng(time(NULL));
+	rng.fill(noise, RNG::NORMAL, 0, 10);
+	add(out, noise, out);
+	return out;
+}
+Mat Winner1(Mat in, float a, float b, float T)
+{
+	in.convertTo(in, 5);
+	int nHeight = in.rows;
+	int nWidth = in.cols;
+	int P = 2 * nHeight;
+	int Q = 2 * nWidth;
+	int i, j;
+	float U = 0.0;
+	float pi_u = 0.0;
+	Mat fp = Mat::zeros(P, Q, 5);
+	for (int j = 0; j < nHeight; j++)
+	{
+		for (int i = 0; i < nWidth; i++)
+		{
+			fp.at<float>(j, i) = in.at<float>(j, i)*pow(-1, j + i);
+
+		}
+	}
+	Mat planes[] = { Mat_<float>(fp), Mat::zeros(fp.size(), CV_32F) };
+	Mat H[] = { Mat::zeros(fp.size(), CV_32F) , Mat::zeros(fp.size(), CV_32F) };
+	Mat H_A = Mat::zeros(P, Q, 5);
+	Mat out=Mat::zeros(nHeight, nWidth, 5);
+	Mat complex;
+	merge(planes, 2, complex);
+	dft(complex, complex);
+	split(complex, planes);
+	float P0, P1;
+	for (int j = 0; j < P; j++)
+	{
+		for (int i = 0; i < Q; i++)
+		{
+
+			pi_u = CV_PI * ((j - nHeight)*a + (i - nWidth) * b) + 1e-20;
+			H[0].at<float>(j, i) = (T / pi_u)*(sin(pi_u))*(cos(pi_u));
+			H[1].at<float>(j, i) = -(T / pi_u)*(sin(pi_u))*(sin(pi_u));
+			P0 = H[0].at<float>(j, i);
+			P1 = H[1].at<float>(j, i);
+			H_A.at<float>(j, i) = P0 * P0 + P1 * P1;
+			U = H_A.at<float>(j, i) / (H_A.at<float>(j, i) + K);
+			planes[0].at<float>(j, i) = U * planes[0].at<float>(j, i);
+			planes[1].at<float>(j, i) = U * planes[1].at<float>(j, i);
+		}
+	}
+	Mat complex_cp;
+	merge(planes, 2, complex_cp);
+	Mat iDft[] = { Mat::zeros(planes[1].size(),CV_32F),Mat::zeros(planes[1].size(),CV_32F) };
+	idft(complex_cp, complex_cp);
+	split(complex_cp, iDft);
+
+	for (int j = 0; j < nHeight; j++)
+	{
+		for (int i = 0; i < nWidth; i++)
+		{
+			out.at<float>(j, i) = iDft[0].at<float>(j, i)*pow(-1, j + i);
+		}
+	}
+
+	normalize(out, out, 0, 255, CV_MINMAX);
+	in.convertTo(in, 0);
+	out.convertTo(out, 0);
+	return out;
+}
+Mat MSE(Mat in,float K_count)
+{
+	int nHeight = in.rows;
+	int nWidth = in.cols;
+	Mat fp;
+	float mse,Mse,k;
+	k = 0.0;
+	Mse = INFINITY;
+	for (K = K_count+0.001; K <= K_count + 0.02 ;K +=  0.004)
+	{
+		mse = 0.0;
+		fp=addgnoise(in,0.1,0.1,1.0);
+		fp.convertTo(fp, 5);
+		in.convertTo(in, 5);
+		for (int j = 0; j < nHeight; j++)
+		{
+			for (int i = 0; i < nWidth; i++)
+			{
+				mse += pow(in.at<float>(j, i) - fp.at<float>(j, i), 2);
+			}
+		}
+		mse = mse / (nHeight*nWidth);
+		if (Mse > mse)
+		{
+			Mse = mse;
+			k = K;
+		}
+		cout << "K=" << K << "  Mse=" << mse<<'\n';
+		in.convertTo(in, 0);
+	}
+	K=k;
+	fp =  addgnoise(in,0.1,0.1,1.0);;
+	cout << "K=" << K << "  Mse_min=" << Mse << '\n';
+	return fp;
+}
+float p_f()
+{
+	float out;
+	out = 0.0;
+	Mat p = Mat::zeros(3, 3, 5);
+	p.at<float>(0, 0) = 0.0;
+	p.at<float>(0, 1) = -1.0;
+	p.at<float>(0, 2) = 0.0;
+	p.at<float>(1, 0) = -1.0;
+	p.at<float>(1, 1) = 4.0;
+	p.at<float>(1, 2) = -1.0;
+	p.at<float>(2, 0) = 0.0;
+	p.at<float>(2, 1) = -1.0;
+	p.at<float>(2, 2) = 0.0;
+	Mat P_F[] = { Mat_<float>(p),Mat::zeros(3,3,5) };
+	Mat complex;
+	merge(P_F, 2, complex);
+	dft(complex, complex);
+	split(complex, P_F);
+	for (int j = 0; j < 3; j++)
+	{
+		for (int i = 0; i < 3; i++)
+		{
+			out = pow(P_F[0].at<float>(j, i), 2) + pow(P_F[1].at<float>(j, i), 2);
+		}
+	}
+	return out;
+}
+void y_find(Mat in, float a, float b, float T, float a_scale)
+{
+
+	int nHeight = in.rows;
+	int nWidth = in.cols;
+	int P = 2 * nHeight;
+	int Q = 2 * nWidth;
+	Mat noise(Size(nHeight, nWidth), in.type());
+	RNG rng(time(NULL));
+	rng.fill(noise, RNG::NORMAL, 0, 10);
+	in.convertTo(in, 5);
+	noise.convertTo(noise, 5);
+	int i, j;
+	float U = 0.0;
+	float pi_u = 0.0;
+	float P_F;
+	float r = 0.0;
+	float n = 0.0;
+	P_F = p_f();
+	n = nHeight * nWidth*10.0;
+	Mat fp = Mat::zeros(P, Q, 5);
+	Mat nois = Mat::zeros(P, Q, 5);
+	for (int j = 0; j < nHeight; j++)
+	{
+		for (int i = 0; i < nWidth; i++)
+		{
+			fp.at<float>(j, i) = in.at<float>(j, i)*pow(-1, j + i);
+			nois.at<float>(j, i) = noise.at<float>(j, i)*pow(-1, j + i);
+		}
+	}
+	Mat G[] = { Mat::zeros(fp.size(), CV_32F) , Mat::zeros(fp.size(), CV_32F) };
+	Mat planes[] = { Mat_<float>(fp), Mat::zeros(fp.size(), CV_32F) };
+	Mat noise_i[] = { Mat_<float>(nois), Mat::zeros(fp.size(), CV_32F) };
+	Mat H[] = { Mat::zeros(fp.size(), CV_32F) , Mat::zeros(fp.size(), CV_32F) };
+	Mat H_A = Mat::zeros(P, Q, 5);
+	Mat out = Mat::zeros(nHeight, nWidth, 5);
+	Mat complex;
+	merge(planes, 2, complex);
+	dft(complex, complex);
+	split(complex, planes);
+	merge(noise_i, 2, complex);
+	dft(complex, complex);
+	split(complex, noise_i);
+	Mat complex_cp;
+	Mat iDft[] = { Mat::zeros(planes[1].size(),CV_32F),Mat::zeros(planes[1].size(),CV_32F) };
+	while (r<n - a_scale || r>n + a_scale)
+	{
+		r = 0.0;
+		for (j = 0; j < P; j++)
+		{
+			for (i = 0; i < Q; i++)
+			{
+
+				pi_u = CV_PI * ((j - nHeight)*a + (i - nWidth) * b) + 1e-20;
+				H[0].at<float>(j, i) = (T / pi_u)*(sin(pi_u))*(cos(pi_u));
+				H[1].at<float>(j, i) = -(T / pi_u)*(sin(pi_u))*(sin(pi_u));
+				G[0].at<float>(j, i) = H[0].at<float>(j, i)*planes[0].at<float>(j, i) - H[1].at<float>(j, i)*planes[1].at<float>(j, i);
+				G[1].at<float>(j, i) = H[1].at<float>(j, i)*planes[0].at<float>(j, i) + H[0].at<float>(j, i)*planes[1].at<float>(j, i);
+
+				H_A.at<float>(j, i) = pow(H[1].at<float>(j, i), 2) + pow(H[0].at<float>(j, i), 2);
+				U = H_A.at<float>(j, i) / (H_A.at<float>(j, i) + y * P_F);
+				noise_i[1].at<float>(j, i) = (noise_i[1].at<float>(j, i)*H[0].at<float>(j, i) - noise_i[0].at<float>(j, i)*H[1].at<float>(j, i)) / U;
+				noise_i[0].at<float>(j, i) = (noise_i[0].at<float>(j, i)*H[0].at<float>(j, i) + noise_i[0].at<float>(j, i)*H[0].at<float>(j, i)) / U;
+				planes[0].at<float>(j, i) = G[0].at<float>(j, i) - U * (H[0].at<float>(j, i)*planes[0].at<float>(j, i) - H[1].at<float>(j, i)*planes[1].at<float>(j, i)) - noise_i[0].at<float>(j, i);
+				planes[1].at<float>(j, i) = G[1].at<float>(j, i) - U * (H[1].at<float>(j, i)*planes[0].at<float>(j, i) + H[0].at<float>(j, i)*planes[1].at<float>(j, i)) - noise_i[1].at<float>(j, i);
+			}
+		}
+		merge(planes, 2, complex_cp);
+		idft(complex_cp, complex_cp);
+		split(complex_cp, iDft);
+
+		for (j = 0; j < nHeight; j++)
+		{
+			for (i = 0; i < nWidth; i++)
+			{
+				r += pow(iDft[0].at<float>(j, i), 2);
+			}
+		}
+		if (r <= n - a_scale)
+		{
+			y = y + y_add;
+		}
+		if (r > n + a_scale)
+		{
+			y = y - y_add;
+		}
+	}
+	in.convertTo(in, 0);
+}
+Mat Minmul(Mat in, float a, float b, float T,float a_scale)
+{
+
+	y_find(in, a, b, T, a_scale);
+	int nHeight = in.rows;
+	int nWidth = in.cols;
+	int P = 2 * nHeight;
+	int Q = 2 * nWidth;
+	Mat noise(Size(nHeight, nWidth), in.type());
+	RNG rng(time(NULL));
+	rng.fill(noise, RNG::NORMAL, 0, 10);
+	in.convertTo(in, 5);
+	noise.convertTo(noise, 5);
+	int i, j;
+	float U = 0.0;
+	float pi_u = 0.0;
+	float P_F;
+	float r=0.0;
+	float n=0.0;
+	P_F = p_f();
+	Mat fp = Mat::zeros(P, Q, 5);
+	Mat nois = Mat::zeros(P, Q, 5);
+	for (int j = 0; j < nHeight; j++)
+	{
+		for (int i = 0; i < nWidth; i++)
+		{
+			fp.at<float>(j, i) = in.at<float>(j, i)*pow(-1, j + i);
+			nois.at<float>(j, i) = noise.at<float>(j, i)*pow(-1, j + i);
+		}
+	}
+	Mat G[] = { Mat::zeros(fp.size(), CV_32F) , Mat::zeros(fp.size(), CV_32F) };
+	Mat planes[] = { Mat_<float>(fp), Mat::zeros(fp.size(), CV_32F) };
+	Mat noise_i[] = { Mat_<float>(nois), Mat::zeros(fp.size(), CV_32F) };
+	Mat H[] = { Mat::zeros(fp.size(), CV_32F) , Mat::zeros(fp.size(), CV_32F) };
+	Mat H_A = Mat::zeros(P, Q, 5);
+	Mat out = Mat::zeros(nHeight, nWidth, 5);
+	Mat complex;
+	merge(planes, 2, complex);
+	dft(complex, complex);
+	split(complex, planes);
+	merge(noise_i, 2, complex);
+	dft(complex, complex);
+	split(complex, noise_i);
+	Mat complex_cp;
+	Mat iDft[] = { Mat::zeros(planes[1].size(),CV_32F),Mat::zeros(planes[1].size(),CV_32F) };
+	for (j = 0; j < P; j++)
+	{
+		for (i = 0; i < Q; i++)
+		{
+
+			pi_u = CV_PI * ((j - nHeight)*a + (i - nWidth) * b) + 1e-20;
+			H[0].at<float>(j, i) = (T / pi_u)*(sin(pi_u))*(cos(pi_u));
+			H[1].at<float>(j, i) = -(T / pi_u)*(sin(pi_u))*(sin(pi_u));
+
+			H_A.at<float>(j, i) = pow(H[1].at<float>(j, i), 2) + pow(H[0].at<float>(j, i), 2);
+			U = H_A.at<float>(j, i) / (H_A.at<float>(j, i) + y * P_F);
+			noise_i[1].at<float>(j, i) = (noise_i[1].at<float>(j, i)*H[0].at<float>(j, i) - noise_i[0].at<float>(j, i)*H[1].at<float>(j, i)) / (H_A.at<float>(j, i) + y * P_F);
+			noise_i[0].at<float>(j, i) = (noise_i[0].at<float>(j, i)*H[0].at<float>(j, i) + noise_i[0].at<float>(j, i)*H[0].at<float>(j, i)) / (H_A.at<float>(j, i) + y * P_F);
+			planes[0].at<float>(j, i) =U * planes[0].at<float>(j, i)+noise_i[0].at<float>(j, i);
+			planes[1].at<float>(j, i) =  U * planes[1].at<float>(j, i) + noise_i[1].at<float>(j, i);
+		}
+	}
+	merge(planes, 2, complex_cp);
+	idft(complex_cp, complex_cp);
+	split(complex_cp, iDft);
+
+	for (j = 0; j < nHeight; j++)
+	{
+		for (i = 0; i < nWidth; i++)
+		{
+			out.at<float>(j, i)= iDft[0].at<float>(j, i)*pow(-1,j+i);
+		}
+	}
+
+	normalize(out, out, 0, 255, CV_MINMAX);
+	out.convertTo(out, 0);
+	return out;
+}
+int main()
+{
+
+	Mat input, output_move_gas, output_Winner1, output_Winner2;
+	input = imread("G:\\图像视频处理\\第6次作业\\第6次作业\\lena.bmp", 0);
+	imshow("input", input);
+	output_move_gas=move_gas(input,0.1,0.1,1.0);
+	output_Winner1 = MSE(input,0.0);
+	imshow("move_gas", output_move_gas);
+	imshow("Winner1", output_Winner1);
+	output_Winner2 = Minmul(input, 0.1, 0.1, 1.0, 0.25);
+	cout << "y="<<y;
+	imshow("Minmul", output_Winner2);
+	waitKey();
+	return 0;
+}
