@@ -1,0 +1,500 @@
+////////////////////////////////////////Project1/////////////////////////////////////////////////
+#include"stdafx.h"
+#include "math.h"
+#include<iostream>
+#include<highgui.hpp>
+//#include<cv.hpp>
+//#include<imgproc.hpp>
+#include<opencv2/opencv.hpp>
+#include<opencv2/core/core.hpp>
+#include<opencv2/imgproc/imgproc.hpp>
+using namespace std;
+using namespace cv;
+#define pi 3.14159
+int number;
+Mat butterworth(Mat in,int N,int D_0)
+{
+	in.convertTo(in, 5);
+	int nHeight = in.rows;
+	int nWidth = in.cols;
+	int P = 2 * nHeight;
+	int Q = 2 * nWidth;
+	Mat fp = Mat::zeros(P, Q, 5);
+	for (int j = 0; j < P; j++)
+	{
+		for (int i = 0; i < Q; i++)
+		{
+
+			if(j<nHeight&&i<nWidth)
+			{
+				fp.at<float>(j, i) = in.at<float>(j, i)*pow(-1,i + j);
+			}
+			else
+			{
+				fp.at<float>(j, i)*=pow(-1, i + j);
+			}
+		}
+	}
+	Mat planes[] = { Mat_<float>(fp), Mat::zeros(fp.size(), CV_32F) };
+	Mat out=Mat::zeros(nHeight, nWidth, 5);
+	Mat H =Mat::zeros(P, Q, 5);
+	Mat D= Mat::zeros(P, Q, 5);
+	Mat G = Mat::zeros(P, Q, 5);
+	Mat complex;
+	merge(planes, 2, complex);
+	dft(complex, complex);
+	split(complex, planes);
+	float Pt,content,P_uv;
+	Pt = content = P_uv = 0.0;
+	for (int j = 0; j < P; j++)
+	{
+		for (int i = 0; i < Q; i++)
+		{
+			D.at<float>(j,i)=(float)(sqrt(pow(j-P/2,2)+pow(i-Q/2,2)));
+			Pt += pow(planes[0].at<float>(j, i), 2) + pow(planes[1].at<float>(j, i), 2);
+			content =(float) (pow(nHeight - j-1, 2) + pow(nWidth - i-1, 2));
+			if (content<=pow(D_0, 2))
+			{
+				P_uv+= pow(planes[0].at<float>(j, i), 2) + pow(planes[1].at<float>(j, i), 2);
+			}
+		}
+	}
+	
+	cout << "功率谱比为：" << (100 * (P_uv / Pt ))<< "%"<<'\n';
+	Mat _complexim;
+	for (int j = 0; j < P; j++)
+	{
+		for (int i = 0; i < Q; i++)
+		{
+			H.at<float>(j,i)=1/(1+pow(D.at<float>(j,i)/D_0,2*N));	
+			planes[1].at<float>(j,i) = H.at<float>(j, i)*planes[1].at<float>(j, i);
+			planes[0].at<float>(j, i) = H.at<float>(j, i)*planes[0].at<float>(j, i);
+		}
+	}
+	merge(planes, 2, _complexim);
+	Mat iDft[] = { Mat::zeros(planes[1].size(),CV_32F),Mat::zeros(planes[1].size(),CV_32F) };
+	idft(_complexim, _complexim);
+	split(_complexim, iDft);
+	for (int j = 0; j < nHeight; j++)
+	{
+		for (int i = 0; i < nWidth; i++)
+		{
+			out.at<float>(j, i) = iDft[0].at<float>(j,i)*pow(-1, j + i);
+		}
+	}
+	normalize(out, out, 0, 255, CV_MINMAX);
+	out.convertTo(out, 0);
+	in.convertTo(in, 0);
+	return out;
+}
+Mat Gaussian_G(Mat in, int N, int D_0)
+{
+	in.convertTo(in, 5);
+	int nHeight = in.rows;
+	int nWidth = in.cols;
+	int P = 2 * nHeight;
+	int Q = 2 * nWidth;
+	Mat fp = Mat::zeros(P, Q, 5);
+	for (int j = 0; j < P; j++)
+	{
+		for (int i = 0; i < Q; i++)
+		{
+
+			if (j<nHeight&&i<nWidth)
+			{
+				fp.at<float>(j, i) = in.at<float>(j, i)*pow(-1, i + j);
+			}
+			else
+			{
+				fp.at<float>(j, i) *= pow(-1, i + j);
+			}
+		}
+	}
+	Mat planes[] = { Mat_<float>(fp), Mat::zeros(fp.size(), CV_32F) };
+	Mat out = Mat::zeros(nHeight, nWidth, 5);
+	Mat H = Mat::zeros(P, Q, 5);
+	Mat D = Mat::zeros(P, Q, 5);
+	Mat G = Mat::zeros(P, Q, 5);
+	Mat complex;
+	merge(planes, 2, complex);
+	//4进行傅里叶变换 
+	dft(complex, complex);
+	split(complex, planes);
+	Mat _complexim;
+	for (int j = 0; j < P; j++)
+	{
+		for (int i = 0; i < Q; i++)
+		{
+		    D.at<float>(j, i) = (float)(sqrt(pow(j - P / 2, 2) + pow(i - Q / 2, 2)));
+			H.at<float>(j, i) = exp(-(pow(D.at<float>(j,i),2)/(2*pow(D_0,2))));
+			planes[1].at<float>(j, i) = H.at<float>(j, i)*planes[1].at<float>(j, i);
+			planes[0].at<float>(j, i) = H.at<float>(j, i)*planes[0].at<float>(j, i);
+		}
+	}
+	merge(planes, 2, _complexim);
+	Mat iDft[] = { Mat::zeros(planes[1].size(),CV_32F),Mat::zeros(planes[1].size(),CV_32F) };
+	idft(_complexim, _complexim);
+	split(_complexim, iDft);
+	for (int j = 0; j < nHeight; j++)
+	{
+		for (int i = 0; i < nWidth; i++)
+		{
+			out.at<float>(j, i) = iDft[0].at<float>(j, i)*pow(-1, j + i);
+		}
+	}
+	normalize(out, out, 0, 255, CV_MINMAX);
+	out.convertTo(out, 0);
+	in.convertTo(in, 0);
+	return out;
+}
+int main()
+{
+	Mat input1, input2, output1, output1_g,output2,output2_g;
+	input1 = imread("G:\\图像视频处理\\第5次作业\\第5次作业\\test1.pgm",0);
+	input2 = imread("G:\\图像视频处理\\第5次作业\\第5次作业\\test2.tif", 0);
+	imshow("input1", input1);
+	imshow("input2", input2);
+	cout << "test1";
+	output1=butterworth(input1,2,20);
+	output1_g = Gaussian_G(input1,2,20);
+	imshow("output1_g", output1_g);
+	imshow("output1", output1);
+	cout << "test2";
+	output2 = butterworth(input2, 2, 20);
+	output2_g = Gaussian_G(input2, 2, 20);
+	imshow("output2_g", output2_g);
+	imshow("output2", output2);
+
+	waitKey();
+	return 0;
+}
+////////////////////////////////////////////Project2//////////////////////////////////////////////
+#include"stdafx.h"
+#include "math.h"
+#include<iostream>
+#include<highgui.hpp>
+//#include<cv.hpp>
+//#include<imgproc.hpp>
+#include<opencv2/opencv.hpp>
+#include<opencv2/core/core.hpp>
+#include<opencv2/imgproc/imgproc.hpp>
+using namespace std;
+using namespace cv;
+#define pi 3.14159
+int number;
+Mat butterworth(Mat in, int N, int D_0)
+{
+	in.convertTo(in, 5);
+	int nHeight = in.rows;
+	int nWidth = in.cols;
+	int P = 2 * nHeight;
+	int Q = 2 * nWidth;
+	Mat fp = Mat::zeros(P, Q, 5);
+	for (int j = 0; j < P; j++)
+	{
+		for (int i = 0; i < Q; i++)
+		{
+
+			if (j<nHeight&&i<nWidth)
+			{
+				fp.at<float>(j, i) = in.at<float>(j, i)*pow(-1, i + j);
+			}
+			else
+			{
+				fp.at<float>(j, i) *= pow(-1, i + j);
+			}
+		}
+	}
+	Mat planes[] = { Mat_<float>(fp), Mat::zeros(fp.size(), CV_32F) };
+	Mat out = Mat::zeros(nHeight, nWidth, 5);
+	Mat H = Mat::zeros(P, Q, 5);
+	Mat D = Mat::zeros(P, Q, 5);
+	Mat G = Mat::zeros(P, Q, 5);
+	Mat complex;
+	merge(planes, 2, complex);
+	dft(complex, complex);
+	split(complex, planes);
+	float Pt, content, P_uv;
+	Pt = content = P_uv = 0.0;
+	for (int j = 0; j < P; j++)
+	{
+		for (int i = 0; i < Q; i++)
+		{
+			D.at<float>(j, i) = (float)(sqrt(pow(j - P / 2, 2) + pow(i - Q / 2, 2)));
+			Pt += pow(planes[0].at<float>(j, i), 2) + pow(planes[1].at<float>(j, i), 2);
+			content = (float)(pow(nHeight - j - 1, 2) + pow(nWidth - i - 1, 2));
+			if (content <= pow(D_0, 2))
+			{
+				P_uv += pow(planes[0].at<float>(j, i), 2) + pow(planes[1].at<float>(j, i), 2);
+			}
+		}
+	}
+
+	cout << "功率谱比为：" << (100 * (P_uv / Pt)) << "%"<<'\n';
+	Mat _complexim;
+	for (int j = 0; j < P; j++)
+	{
+		for (int i = 0; i < Q; i++)
+		{
+			H.at<float>(j, i) = 1 / (1 + pow(D_0 / D.at<float>(j, i), 2 * N));
+			planes[1].at<float>(j, i) = H.at<float>(j, i)*planes[1].at<float>(j, i);
+			planes[0].at<float>(j, i) = H.at<float>(j, i)*planes[0].at<float>(j, i);
+		}
+	}
+	merge(planes, 2, _complexim);
+	Mat iDft[] = { Mat::zeros(planes[1].size(),CV_32F),Mat::zeros(planes[1].size(),CV_32F) };
+	idft(_complexim, _complexim);
+	split(_complexim, iDft);
+
+	for (int j = 0; j < nHeight; j++)
+	{
+		for (int i = 0; i < nWidth; i++)
+		{
+			out.at<float>(j, i) = iDft[0].at<float>(j, i)*pow(-1, j + i);
+		}
+	}
+	normalize(out,out, 0, 255, CV_MINMAX);
+	in.convertTo(in, 0);
+	out.convertTo(out, 0);
+	return out;
+}
+Mat Gaussian_G(Mat in, int N, int D_0)
+{
+	in.convertTo(in, 5);
+	int nHeight = in.rows;
+	int nWidth = in.cols;
+	int P = 2 * nHeight;
+	int Q = 2 * nWidth;
+	Mat fp = Mat::zeros(P, Q, 5);
+	for (int j = 0; j < P; j++)
+	{
+		for (int i = 0; i < Q; i++)
+		{
+
+			if (j<nHeight&&i<nWidth)
+			{
+				fp.at<float>(j, i) = in.at<float>(j, i)*pow(-1, i + j);
+			}
+			else
+			{
+				fp.at<float>(j, i) *= pow(-1, i + j);
+			}
+		}
+	}
+	Mat planes[] = { Mat_<float>(fp), Mat::zeros(fp.size(), CV_32F) };
+	Mat out = Mat::zeros(nHeight, nWidth, 5);
+	Mat H = Mat::zeros(P, Q, 5);
+	Mat D = Mat::zeros(P, Q, 5);
+	Mat G = Mat::zeros(P, Q, 5);
+	Mat complex;
+	merge(planes, 2, complex);
+	dft(complex, complex);
+	split(complex, planes);
+	Mat _complexim;
+	float expp=0.0;
+	for (int j = 0; j < P; j++)
+	{
+		for (int i = 0; i < Q; i++)
+		{
+			D.at<float>(j, i) = (float)(sqrt(pow(j - P / 2, 2) + pow(i - Q / 2, 2)));
+			expp = exp(-(pow(D.at<float>(j, i), 2) / (2 * pow(D_0, 2))));
+			H.at<float>(j, i) = 1.0 - expp;
+			planes[0].at<float>(j, i) = H.at<float>(j, i)*planes[0].at<float>(j, i);
+			planes[1].at<float>(j, i) = H.at<float>(j, i)*planes[1].at<float>(j, i);
+			//cout << H.at<float>(j, i) << "  ";
+		}
+	}
+	merge(planes, 2, _complexim);
+	Mat iDft[] = { Mat::zeros(planes[1].size(),CV_32F),Mat::zeros(planes[1].size(),CV_32F) };
+	idft(_complexim, _complexim);
+	split(_complexim, iDft);
+	for (int j = 0; j < nHeight; j++)
+	{
+		for (int i = 0; i < nWidth; i++)
+		{
+			out.at<float>(j, i) = iDft[0].at<float>(j, i)*pow(-1, j + i);
+		}
+	}
+	normalize(out, out, 0, 255, CV_MINMAX);
+	in.convertTo(in, 0);
+	out.convertTo(out, 0);
+	return out;
+}
+int main()
+{
+	Mat input1, input2, output1, output1_g, output2, output2_g;
+	input1 = imread("G:\\图像视频处理\\第5次作业\\第5次作业\\test3_corrupt.pgm", 0);
+	input2 = imread("G:\\图像视频处理\\第5次作业\\第5次作业\\test4 copy.bmp", 0);
+	imshow("input1", input1);
+	imshow("input2", input2);
+	cout << "test3";
+	output1 = butterworth(input1, 2, 50);
+	output1_g = Gaussian_G(input1, 2, 50);
+	imshow("output1_g", output1_g);
+	imshow("output1", output1);
+	cout << "test4";
+	output2 = butterworth(input2, 2, 50);
+	output2_g = Gaussian_G(input2, 2, 50);
+	imshow("output2_g", output2_g);
+	imshow("output2", output2);
+
+	waitKey();
+	return 0;
+}
+/////////////////////////////////////////////Project3///////////////////////////////////////////////
+#include"stdafx.h"
+#include "math.h"
+#include<iostream>
+#include<highgui.hpp>
+//#include<cv.hpp>
+//#include<imgproc.hpp>
+#include<opencv2/opencv.hpp>
+#include<opencv2/core/core.hpp>
+#include<opencv2/imgproc/imgproc.hpp>
+using namespace std;
+using namespace cv;
+Mat LP(Mat in)
+{
+	in.convertTo(in, 5);
+	int nHeight = in.rows;
+	int nWidth = in.cols;
+	int P = 2 * nHeight;
+	int Q = 2 * nWidth;
+	float max = 0.0;
+	Mat fp = Mat::zeros(P, Q, 5);
+	for (int j = 0; j < P; j++)
+	{
+		for (int i = 0; i < Q; i++)
+		{
+
+			if (j<nHeight&&i<nWidth)
+			{
+				fp.at<float>(j, i) = in.at<float>(j, i)*pow(-1, i + j);
+			}
+			else
+			{
+				fp.at<float>(j, i) *= pow(-1, i + j);
+			
+			}
+		}
+	}
+
+	Mat planes[] = { Mat_<float>(fp), Mat::zeros(fp.size(), CV_32F) };
+	Mat out = Mat::zeros(nHeight, nWidth, 5);
+	Mat H = Mat::zeros(P, Q, 5);
+	Mat G = Mat::zeros(P, Q, 5);
+	Mat complex;
+	merge(planes, 2, complex);
+	dft(complex, complex);
+	split(complex, planes);
+	Mat _complexim;
+	for (int j = 0; j < P; j++)
+	{
+		for (int i = 0; i < Q; i++)
+		{
+			H.at<float>(j, i) = -4*pow(pi,2)*(pow(j,2)+pow(i,2));
+			planes[1].at<float>(j, i) = H.at<float>(j, i)*planes[1].at<float>(j, i);
+			planes[0].at<float>(j, i) = H.at<float>(j, i)*planes[0].at<float>(j, i);
+		}
+	}
+	merge(planes, 2, _complexim);
+	Mat iDft[] = { Mat::zeros(planes[1].size(),CV_32F),Mat::zeros(planes[1].size(),CV_32F) };
+	idft(_complexim, _complexim);
+	split(_complexim, iDft);
+	//magnitude(iDft[0], iDft[1], iDft[0]);
+	normalize(iDft[0], iDft[0], 0, 255, CV_MINMAX);
+	for (int j = 0; j < nHeight; j++)
+	{
+		for (int i = 0; i < nWidth; i++)
+		{
+			out.at<float>(j, i) = (in.at<float>(j,i)-iDft[0].at<float>(j, i))*pow(-1, j + i);
+		}
+	}
+	normalize(out, out, 0, 255, CV_MINMAX);
+	in.convertTo(in, 0);
+	out.convertTo(out, 0);
+	return out;
+}
+Mat Unmark(Mat in, int N, int D_0)
+{
+	in.convertTo(in, 5);
+	int nHeight = in.rows;
+	int nWidth = in.cols;
+	int P = 2 * nHeight;
+	int Q = 2 * nWidth;
+	Mat fp = Mat::zeros(P, Q, 5);
+	for (int j = 0; j < P; j++)
+	{
+		for (int i = 0; i < Q; i++)
+		{
+
+			if (j<nHeight&&i<nWidth)
+			{
+				fp.at<float>(j, i) = in.at<float>(j, i)*pow(-1, i + j);
+			}
+			else
+			{
+				fp.at<float>(j, i) *= pow(-1, i + j);
+			}
+		}
+	}
+	Mat planes[] = { Mat_<float>(fp), Mat::zeros(fp.size(), CV_32F) };
+	Mat out = Mat::zeros(nHeight,nWidth, 5);
+	Mat H = Mat::zeros(P, Q, 5);
+	Mat D = Mat::zeros(P, Q, 5);
+	Mat G = Mat::zeros(P, Q, 5);
+	Mat complex;
+	merge(planes, 2, complex);
+	dft(complex, complex);
+	split(complex, planes);
+	Mat _complexim;
+	float expp = 0.0;
+	for (int j = 0; j < P; j++)
+	{
+		for (int i = 0; i < Q; i++)
+		{
+			D.at<float>(j, i) = (float)(sqrt(pow(j - P / 2, 2) + pow(i - Q / 2, 2)));
+			expp = exp(-(pow(D.at<float>(j, i), 2) / (2 * pow(D_0, 2))));
+			H.at<float>(j, i) = 2-expp;
+			planes[0].at<float>(j, i) = H.at<float>(j, i)*planes[0].at<float>(j, i);
+			planes[1].at<float>(j, i) = H.at<float>(j, i)*planes[1].at<float>(j, i);
+		}
+	}
+	merge(planes, 2, _complexim);
+	Mat iDft[] = { Mat::zeros(planes[1].size(),CV_32F),Mat::zeros(planes[1].size(),CV_32F) };
+	idft(_complexim, _complexim);
+	split(_complexim, iDft);
+	for (int j = 0; j < nHeight; j++)
+	{
+		for (int i = 0; i < nWidth; i++)
+		{
+			out.at<float>(j, i) = iDft[0].at<float>(j, i)*pow(-1, j + i);
+		}
+	}
+	normalize(out, out, 0, 255, CV_MINMAX);
+	in.convertTo(in, 0);
+	out.convertTo(out, 0);
+	return out;
+}
+int main()
+{
+	Mat input1, input2, output1, output1_n, output2, output2_n;
+	input1 = imread("G:\\图像视频处理\\第5次作业\\第5次作业\\test3_corrupt.pgm",0);
+	input2 = imread("G:\\图像视频处理\\第5次作业\\第5次作业\\test4 copy.bmp",0);
+	imshow("input1", input1);
+	imshow("input2", input2);
+	output1 = LP(input1);
+	output1_n = Unmark(input1, 2, 20);
+	imshow("output1_n", output1_n);
+	imshow("output1", output1);	
+	output2 = LP(input2);
+	output2_n = Unmark(input2, 2, 20);
+	imshow("output2_n", output2_n);
+	namedWindow("output2", 0);
+	imshow("output2", output2);
+
+	waitKey();
+	return 0;
+}
+#define pi 3.14159
+int number;
